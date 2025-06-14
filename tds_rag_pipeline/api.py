@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from embedder import retrieve_chunks
+from tds_rag_pipeline.embedder import retrieve_chunks
 from sentence_transformers import SentenceTransformer
 import pandas as pd
 import faiss
