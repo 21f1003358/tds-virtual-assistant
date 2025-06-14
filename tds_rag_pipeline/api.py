@@ -10,8 +10,8 @@ from PIL import Image
 import io
 import pytesseract
 import shutil
-from tds_rag_pipeline.embedder import retrieve_chunks  # make sure it's accessible
-
+from embedder import retrieve_chunks  # make sure it's accessible
+import requests
 load_dotenv()
 
 # Optional: Set tesseract path from .env if not already in PATH
