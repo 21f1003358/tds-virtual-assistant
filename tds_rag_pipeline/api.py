@@ -58,6 +58,9 @@ Answer:
     }
     response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
     return response.json()["choices"][0]["message"]["content"]
+@app.get("/")
+def read_root():
+    return {"message": "API is running"}
 
 @app.post("/api")  # updated endpoint from /ask to /api
 def ask(query: Query):
