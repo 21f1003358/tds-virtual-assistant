@@ -69,6 +69,5 @@ Thumbs.db
 # Others
 *.bak
 *.tmp
-
 # Optional: ignore data files
 chunked_discourse_texts_cleaned.csv
