@@ -1,22 +1,28 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from tds_rag_pipeline.embedder import retrieve_chunks
 from sentence_transformers import SentenceTransformer
 import pandas as pd
 import faiss
 import os
-import requests
 from dotenv import load_dotenv
 import base64
 from PIL import Image
 import io
 import pytesseract
+import shutil
+from tds_rag_pipeline.embedder import retrieve_chunks  # make sure it's accessible
 
 load_dotenv()
 
+# Optional: Set tesseract path from .env if not already in PATH
+if not shutil.which("tesseract"):
+    pytesseract_path = os.getenv("TESSERACT_CMD")
+    if pytesseract_path:
+        pytesseract.pytesseract.tesseract_cmd = pytesseract_path
+
 app = FastAPI()
 
-# Load model and vector index
+# Load FAISS index and chunk data
 model = SentenceTransformer("all-MiniLM-L6-v2")
 index = faiss.read_index("discourse_faiss_index.index")
 df = pd.read_csv("discourse_faiss_texts.csv")
@@ -53,13 +59,14 @@ Answer:
     response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
     return response.json()["choices"][0]["message"]["content"]
 
-@app.post("/ask")
+@app.post("/api")  # updated endpoint from /ask to /api
 def ask(query: Query):
-    # If image is provided, extract text via OCR
+    # Extract text from base64 image if provided
     if query.image:
         try:
             image_bytes = base64.b64decode(query.image)
             image = Image.open(io.BytesIO(image_bytes))
+            image.save("temp_image.png")
             ocr_text = pytesseract.image_to_string(image)
             query.question += f"\n\n[Extracted from image: {ocr_text}]"
         except Exception as e:
@@ -80,5 +87,5 @@ def ask(query: Query):
 
     return {
         "answer": answer,
-        "links": links[:5]  # at most 2 links
+        "links": links[:2]  # limit to top 2 links
     }

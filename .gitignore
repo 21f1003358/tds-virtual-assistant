@@ -65,13 +65,10 @@ Thumbs.db
 
 # Render build artifacts
 *.db
-*.index
 
 # Others
 *.bak
 *.tmp
 
 # Optional: ignore data files
-discourse_faiss_index.index
-discourse_faiss_texts.csv
 chunked_discourse_texts_cleaned.csv
