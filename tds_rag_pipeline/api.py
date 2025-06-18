@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
@@ -16,29 +17,19 @@ from tds_rag_pipeline.embedder import retrieve_chunks
 
 load_dotenv()
 
-# Configure model
-model = SentenceTransformer("all-MiniLM-L6-v2")
-
-# ✅ Google Drive direct download links (not "view" links)
 FAISS_URL = "https://drive.google.com/uc?export=download&id=1lCypt1FVlcwzzMK1o3CiS0XhVb6cMTTC"
 CSV_URL = "https://drive.google.com/uc?export=download&id=1WA4GDWPAesQ-mSXPwmDRm0nSC89DWyOr"
 
-# ✅ Robust download function
 def download_file(url: str, local_path: str):
-    if os.path.exists(local_path):
-        return
-    print(f"Downloading {local_path}...")
-    response = requests.get(url, stream=True)
-    if response.status_code == 200:
-        with open(local_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
+    if not os.path.exists(local_path):
+        print(f"Downloading {local_path}...")
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            with open(local_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
         print(f"Saved {local_path}")
-    else:
-        raise RuntimeError(f"Download failed for {local_path} with status {response.status_code}")
 
-# ✅ Lazy loading and caching for FAISS index and texts
 @lru_cache(maxsize=1)
 def load_index_and_texts():
     download_file(FAISS_URL, "discourse_faiss_index.index")
@@ -49,6 +40,10 @@ def load_index_and_texts():
     df = df.tail(1000)
     texts = df["chunk_cleaned"].dropna().tolist()
     return index, texts
+
+@lru_cache(maxsize=1)
+def get_model():
+    return SentenceTransformer("all-MiniLM-L6-v2")
 
 app = FastAPI()
 
@@ -98,6 +93,7 @@ def ask(query: Query):
             print("Image OCR error:", e)
 
     index, texts = load_index_and_texts()
+    model = get_model()
     chunks = retrieve_chunks(query.question, index, texts, model, query.k)
     answer = generate_answer(query.question, chunks)
 
