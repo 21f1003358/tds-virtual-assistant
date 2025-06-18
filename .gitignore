@@ -38,3 +38,4 @@ Thumbs.db
 
 # Ngrok or local deploy tools
 ngrok.log
+.vercel
