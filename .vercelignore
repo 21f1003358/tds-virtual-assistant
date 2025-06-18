@@ -1,0 +1,12 @@
+# Ignore preprocessing scripts
+preprocess.py
+
+# Ignore data and intermediate files
+*.zip
+*.csv
+*.index
+
+# Optionally ignore other scripts not needed for deployment
+chunker.py
+tds_pages_md.zip
+discourse.json.zip

@@ -1,40 +1,55 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
+from typing import Optional
 import pandas as pd
 import faiss
 import os
 from dotenv import load_dotenv
+import requests
 import base64
 from PIL import Image
-import io
 import pytesseract
-import shutil
-from embedder import retrieve_chunks  # make sure it's accessible
-import requests
+import io
+from functools import lru_cache
+
+# Load environment variables
 load_dotenv()
 
-# Optional: Set tesseract path from .env if not already in PATH
+# Set tesseract path from .env if not already in PATH
 if not shutil.which("tesseract"):
-    pytesseract_path = os.getenv("TESSERACT_CMD")
-    if pytesseract_path:
-        pytesseract.pytesseract.tesseract_cmd = pytesseract_path
+    tesseract_path = os.getenv("TESSERACT_CMD")
+    if tesseract_path:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_path
 
+# Base directory for locating static files
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INDEX_PATH = os.path.join(BASE_DIR, "..", "assets", "discourse_faiss_index.index")
+CSV_PATH = os.path.join(BASE_DIR, "..", "assets", "discourse_faiss_texts.csv")
+
+# Initialize app and model
 app = FastAPI()
-
-# Load FAISS index and chunk data
 model = SentenceTransformer("all-MiniLM-L6-v2")
-index = faiss.read_index("discourse_faiss_index.index")
-df = pd.read_csv("discourse_faiss_texts.csv")
-texts = df["chunk_cleaned"].dropna().tolist()
 
 class Query(BaseModel):
     question: str
-    k: int = 5
-    image: str | None = None  # Optional base64 image input
+    k: Optional[int] = 5
+    image: Optional[str] = None  # base64-encoded image
 
-def generate_answer(question, chunks):
-    context = "\n\n".join(chunks)
+@lru_cache(maxsize=1)
+def load_data():
+    index = faiss.read_index(INDEX_PATH)
+    df = pd.read_csv(CSV_PATH)
+    texts = df["chunk_cleaned"].dropna().tolist()
+    return index, texts
+
+def retrieve_chunks(query, index, texts, model, k):
+    question_embedding = model.encode([query])
+    _, I = index.search(question_embedding, k)
+    return [texts[i] for i in I[0] if i < len(texts)]
+
+def generate_answer(question, context_chunks):
+    context = "\n\n".join(context_chunks)
     prompt = f"""
 You are a helpful assistant for a Data Science course.
 Answer the question below using ONLY the following context.
@@ -52,43 +67,38 @@ Answer:
     }
     payload = {
         "model": "mistralai/mistral-7b-instruct",
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
+        "messages": [{"role": "user", "content": prompt}]
     }
     response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
     return response.json()["choices"][0]["message"]["content"]
-@app.get("/")
-def read_root():
-    return {"message": "API is running"}
 
-@app.post("/api")  # updated endpoint from /ask to /api
+@app.get("/")
+def health_check():
+    return {"message": "API is live!"}
+
+@app.post("/api")
 def ask(query: Query):
-    # Extract text from base64 image if provided
+    # OCR from base64 image
     if query.image:
         try:
-            image_bytes = base64.b64decode(query.image)
-            image = Image.open(io.BytesIO(image_bytes))
-            image.save("temp_image.png")
+            image_data = base64.b64decode(query.image)
+            image = Image.open(io.BytesIO(image_data))
             ocr_text = pytesseract.image_to_string(image)
             query.question += f"\n\n[Extracted from image: {ocr_text}]"
         except Exception as e:
-            print("OCR failed:", e)
+            print("Image OCR failed:", e)
 
-    chunks = retrieve_chunks(query.question, index, texts, model, query.k)
+    index, texts = load_data()
+    chunks = retrieve_chunks(query.question, index, texts, model, query.k or 5)
     answer = generate_answer(query.question, chunks)
 
     links = []
     for chunk in chunks:
         if "http" in chunk:
-            parts = chunk.split("http", 1)
-            url_candidate = "http" + parts[1].split()[0].strip().rstrip(",.)\"")
-            links.append({
-                "url": url_candidate,
-                "text": chunk.strip()[:150] + "..."
-            })
+            part = chunk.split("http", 1)[1].split()[0].strip().rstrip(".,)\"")
+            links.append({"url": "http" + part, "text": chunk[:150] + "..."})
 
     return {
         "answer": answer,
-        "links": links[:2]  # limit to top 2 links
+        "links": links[:2]  # Return at most 2 links
     }

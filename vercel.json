@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "index.py"
+    }
+  ],
+  "env": {
+    "OPENROUTER_API_KEY": "@openrouter_api_key",
+    "TESSERACT_CMD": "@tesseract_cmd"
+  }
+}
