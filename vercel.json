@@ -13,7 +13,7 @@
     }
   ],
   "env": {
-    "OPENROUTER_API_KEY": "@openrouter_api_key",
-    "TESSERACT_CMD": "@tesseract_cmd"
+    "OPENROUTER_API_KEY": "OPENROUTER_API_KEY",
+    "TESSERACT_CMD": "TESSERACT_CMD"
   }
 }
