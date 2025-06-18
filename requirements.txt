@@ -10,4 +10,3 @@ pillow
 pytesseract
 nest_asyncio
 pyngrok
-langchain

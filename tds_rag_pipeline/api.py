@@ -19,21 +19,26 @@ load_dotenv()
 # Configure model
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Google Drive raw export links
-FAISS_URL = "https://drive.google.com/file/d/1lCypt1FVlcwzzMK1o3CiS0XhVb6cMTTC/view?usp=sharing"
-CSV_URL = "https://drive.google.com/file/d/1WA4GDWPAesQ-mSXPwmDRm0nSC89DWyOr/view?usp=sharing"
+# ✅ Google Drive direct download links (not "view" links)
+FAISS_URL = "https://drive.google.com/uc?export=download&id=1lCypt1FVlcwzzMK1o3CiS0XhVb6cMTTC"
+CSV_URL = "https://drive.google.com/uc?export=download&id=1WA4GDWPAesQ-mSXPwmDRm0nSC89DWyOr"
 
+# ✅ Robust download function
 def download_file(url: str, local_path: str):
-    if not os.path.exists(local_path):
-        print(f"Downloading {local_path}...")
-        response = requests.get(url)
-        if response.status_code == 200:
-            with open(local_path, "wb") as f:
-                f.write(response.content)
-            print(f"Saved {local_path}")
-        else:
-            raise RuntimeError(f"Download failed for {local_path} with status {response.status_code}")
+    if os.path.exists(local_path):
+        return
+    print(f"Downloading {local_path}...")
+    response = requests.get(url, stream=True)
+    if response.status_code == 200:
+        with open(local_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        print(f"Saved {local_path}")
+    else:
+        raise RuntimeError(f"Download failed for {local_path} with status {response.status_code}")
 
+# ✅ Lazy loading and caching for FAISS index and texts
 @lru_cache(maxsize=1)
 def load_index_and_texts():
     download_file(FAISS_URL, "discourse_faiss_index.index")
